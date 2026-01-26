@@ -1,0 +1,7 @@
+[Unit]
+Description=Prometheus node exporter (stub)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node_exporter
+# RAM-safe options; deploy per Phase 5.

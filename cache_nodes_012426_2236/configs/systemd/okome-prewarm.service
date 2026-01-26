@@ -1,0 +1,7 @@
+[Unit]
+Description=OKOME pre-warm (stub)
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/okome-prewarm.sh

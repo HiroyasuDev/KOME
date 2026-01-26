@@ -1,0 +1,52 @@
+# KOME - Git Ignore Patterns
+
+# Environment and Secrets
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.p12
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# SSH keys (if stored locally)
+*.pub
+id_rsa
+id_ed25519
+known_hosts
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Cache data (if testing locally)
+cache/
+nginx-cache/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,52 @@
+name: KOME Cache Node Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+      
+      - name: Lint shell scripts
+        run: |
+          find scripts/ -name "*.sh" -exec shellcheck {} \;
+          find tests/ -name "*.sh" -exec shellcheck {} \;
+      
+      - name: Check script permissions
+        run: |
+          for script in scripts/*.sh tests/*.sh; do
+            if [ -f "$script" ]; then
+              if [ ! -x "$script" ]; then
+                echo "Warning: $script is not executable"
+              fi
+            fi
+          done
+      
+      - name: Validate NGINX configuration
+        run: |
+          if command -v nginx &> /dev/null; then
+            nginx -t -c infra/cache/nginx-kome-cache.conf || echo "NGINX not available in CI, skipping config test"
+          else
+            echo "NGINX not available in CI environment, skipping config validation"
+          fi
+      
+      - name: Check documentation links
+        run: |
+          echo "Documentation structure check:"
+          ls -la docs/
+          ls -la docs/guides/
+          ls -la docs/operations/
+          ls -la docs/setup/

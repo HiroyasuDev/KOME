@@ -1,0 +1,10 @@
+# OKOME – health probe (stub)
+# Phase 2. Unit for okome-health-probe.timer.
+
+[Unit]
+Description=OKOME health probe
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/okome-health-probe.sh

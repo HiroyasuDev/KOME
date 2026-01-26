@@ -1,0 +1,10 @@
+# OKOME – health probe timer (stub)
+# Phase 2. Every 5s.
+
+[Unit]
+Description=OKOME health probe timer
+
+[Timer]
+OnBootSec=10
+OnUnitActiveSec=5
+Persistent=yes

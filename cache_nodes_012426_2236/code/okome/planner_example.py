@@ -1,0 +1,6 @@
+# OKOME – planner integration example (stub)
+# Plan: okome_two-node_cache_architecture_implementation
+# TODO: Use cache.py + budget.py; stampede locks; X-OKOME-Cache headers.
+
+# from okome.cache import ...
+# from okome.budget import ...

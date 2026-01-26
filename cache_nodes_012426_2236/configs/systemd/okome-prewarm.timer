@@ -1,0 +1,6 @@
+[Unit]
+Description=OKOME pre-warm timer (stub)
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=120
+Persistent=yes

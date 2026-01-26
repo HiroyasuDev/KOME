@@ -1,0 +1,5 @@
+# OKOME – fail2ban (stub)
+# Phase 5. RAM-only, SSH-focused.
+
+[sshd]
+enabled = true

@@ -1,0 +1,21 @@
+# Cursor IDE Rules for KOME Project
+
+## Project Context
+KOME is a lightweight edge cache node for OKOME's frontend assets, running on Raspberry Pi.
+
+## Key Patterns
+- Use `kome_core` (not `okome_core`) for upstream references
+- NGINX config file: `kome-cache.conf` (not `okome-cache.conf`)
+- Script naming: lowercase with hyphens (e.g., `bootstrap.sh`)
+- All scripts should be executable and include proper error handling
+
+## Network Configuration
+- Cache Node IP: 192.168.86.20
+- OKOME Core IP: 192.168.86.25:3000
+- SSH User: ncadmin
+- SSH Port: 22
+
+## File Locations
+- NGINX Config: `/etc/nginx/conf.d/kome-cache.conf`
+- Cache Directory: `/var/cache/nginx/static`
+- Logs: `/var/log/nginx/access.log`, `/var/log/nginx/error.log`

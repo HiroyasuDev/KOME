@@ -1,0 +1,5 @@
+# OKOME – SSH hardening (stub)
+# Phase 5. Key-only, no passwords. Merge into /etc/ssh/sshd_config.
+
+# PasswordAuthentication no
+# PubkeyAuthentication yes
