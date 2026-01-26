@@ -82,7 +82,7 @@
 ### 3. **Phase 6 SRE runbook**
 - **Gap**: 06_SRE_RUNBOOK is a stub. Incident procedures (UI slow/blank, Redis down, VIP not responding, Pi dead, upstream down, cache-miss storm, chaos) are not written.
 - **Impact**: No formal runbook for operations.
-- **Fix**: Implement 06_SRE_RUNBOOK per plan; keep `okome-validate.sh` as the one-command validation.
+- **Fix**: Implement 06_SRE_RUNBOOK per plan; document all seven incident types with step-by-step procedures, and keep `okome-validate.sh` as the canonical one-command validation (reference it for pre- and post-incident checks in the runbook).
 
 ### 4. **Code stubs (Phase 3)**
 - **Gap**: `code/okome/cache.py`, `budget.py`, `planner_example.py` are stubs with TODOs:
