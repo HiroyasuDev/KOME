@@ -1,7 +1,8 @@
 [Unit]
-Description=OKOME pre-warm (stub)
-After=network-online.target nginx.service
+Description=OKOME Nginx cache prewarm
 
 [Service]
 Type=oneshot
+Environment=OKOME_WARM_TARGET=http://192.168.86.18
 ExecStart=/usr/local/bin/okome-prewarm.sh
+User=root

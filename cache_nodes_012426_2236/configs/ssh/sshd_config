@@ -1,5 +1,35 @@
-# OKOME – SSH hardening (stub)
-# Phase 5. Key-only, no passwords. Merge into /etc/ssh/sshd_config.
+# SSH Hardened Configuration
+# Location: /etc/ssh/sshd_config
+# Security: Key-only, no passwords, LAN-scoped
 
-# PasswordAuthentication no
-# PubkeyAuthentication yes
+Port 22
+Protocol 2
+
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+UsePAM no
+
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+AllowUsers pi
+AllowGroups sshusers
+
+X11Forwarding no
+AllowTcpForwarding no
+AllowAgentForwarding no
+PermitTunnel no
+
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+MaxAuthTries 3
+LoginGraceTime 20
+
+# Notes:
+# - Keys only: No password authentication
+# - No root login: Security best practice
+# - LAN-only: AllowUsers/AllowGroups restrict access
+# - Minimal forwarding: Reduces attack surface

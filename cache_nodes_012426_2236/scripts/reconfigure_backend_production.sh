@@ -40,7 +40,7 @@ echo "Node: ${BACKEND_IP}"
 echo ""
 
 # ---- 1. Static IP (192.168.86.19) ----
-echo -e "${GREEN}[1/7] Static IP ${BACKEND_IP}...${NC}"
+echo -e "${GREEN}[1/8] Static IP ${BACKEND_IP}...${NC}"
 STATIC_DONE=0
 if command -v nmcli &>/dev/null && systemctl is-active NetworkManager &>/dev/null; then
   NM_CONN=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: '$2=="eth0"{print $1; exit}')
@@ -78,16 +78,21 @@ EOF
 fi
 [ "$STATIC_DONE" -eq 0 ] && echo -e "${YELLOW}  Skip: no NetworkManager/dhcpcd. Configure manually.${NC}"
 
-# ---- 2. Disable unnecessary services ----
-echo -e "${GREEN}[2/7] Disable bluetooth, avahi...${NC}"
+# ---- 2. Hostname CN01 ----
+echo -e "${GREEN}[2/8] Hostname CN01...${NC}"
+hostnamectl set-hostname CN01 2>/dev/null || true
+echo -e "${GREEN}  Done.${NC}"
+
+# ---- 3. Disable unnecessary services ----
+echo -e "${GREEN}[3/8] Disable bluetooth, avahi...${NC}"
 systemctl disable bluetooth 2>/dev/null || true
 systemctl disable avahi-daemon 2>/dev/null || true
 systemctl stop bluetooth 2>/dev/null || true
 systemctl stop avahi-daemon 2>/dev/null || true
 echo -e "${GREEN}  Done.${NC}"
 
-# ---- 3. Journald RAM-only ----
-echo -e "${GREEN}[3/7] Journald RAM-only...${NC}"
+# ---- 4. Journald RAM-only ----
+echo -e "${GREEN}[4/8] Journald RAM-only...${NC}"
 JOURNALD_D="/etc/systemd/journald.conf.d"
 mkdir -p "$JOURNALD_D"
 if [ -f "$JOURNALD_SRC" ]; then
@@ -103,8 +108,8 @@ else
   echo -e "${GREEN}  Already configured.${NC}"
 fi
 
-# ---- 4. Sysctl ----
-echo -e "${GREEN}[4/7] Sysctl production tweaks...${NC}"
+# ---- 5. Sysctl ----
+echo -e "${GREEN}[5/8] Sysctl production tweaks...${NC}"
 if [ -f "$SYSCTL_SRC" ]; then
   cp "$SYSCTL_SRC" /etc/sysctl.d/okome.conf
   sysctl -p /etc/sysctl.d/okome.conf 2>/dev/null || true
@@ -113,8 +118,8 @@ else
   echo -e "${YELLOW}  Skip: ${SYSCTL_SRC} not found.${NC}"
 fi
 
-# ---- 5. Redis production config ----
-echo -e "${GREEN}[5/7] Redis production config...${NC}"
+# ---- 6. Redis production config ----
+echo -e "${GREEN}[6/8] Redis production config...${NC}"
 cp "$REDIS_CONF_SRC" "$REDIS_CONF_DEST"
 grep -q "192.168.86.19" "$REDIS_CONF_DEST" || sed -i 's/^bind .*/bind 127.0.0.1 192.168.86.19/' "$REDIS_CONF_DEST"
 chown redis:redis "$REDIS_CONF_DEST" 2>/dev/null || true
@@ -122,8 +127,8 @@ systemctl enable redis-server 2>/dev/null || true
 systemctl restart redis-server
 echo -e "${GREEN}  Deployed and restarted.${NC}"
 
-# ---- 6. Logrotate for Redis ----
-echo -e "${GREEN}[6/7] Logrotate Redis...${NC}"
+# ---- 7. Logrotate for Redis ----
+echo -e "${GREEN}[7/8] Logrotate Redis...${NC}"
 cat > /etc/logrotate.d/redis-okome << 'LR'
 /var/log/redis/*.log {
     daily
@@ -140,8 +145,8 @@ cat > /etc/logrotate.d/redis-okome << 'LR'
 LR
 echo -e "${GREEN}  Done.${NC}"
 
-# ---- 7. Verify ----
-echo -e "${GREEN}[7/7] Verify...${NC}"
+# ---- 8. Verify ----
+echo -e "${GREEN}[8/8] Verify...${NC}"
 sleep 2
 if redis-cli ping 2>/dev/null | grep -q PONG; then
   echo -e "${GREEN}  Redis PONG.${NC}"

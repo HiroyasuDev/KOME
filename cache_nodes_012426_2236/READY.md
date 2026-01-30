@@ -42,12 +42,14 @@ sshpass -p "ussfitzgerald" ssh -p 22 -o StrictHostKeyChecking=no ncadmin@192.168
 ## Deploy / Reconfig
 
 ```bash
-# Frontend (CN00) – Nginx, okome-frontend.conf, usshopper
+# Frontend (CN00) – install + reconfigure (Nginx, static IP, journald, sysctl, hostname), usshopper
 OKOME_FRONTEND_PASS=usshopper ./cache_nodes_012426_2236/scripts/deploy_frontend_production.sh 192.168.86.20
 
-# Backend (CN01) – Redis, static IP, hardening, ussfitzgerald
+# Backend (CN01) – single script for fresh or existing; installs Redis when missing, then reconfig (static IP, hardening, hostname), ussfitzgerald
 OKOME_BACKEND_PASS=ussfitzgerald ./cache_nodes_012426_2236/scripts/deploy_backend_production.sh 192.168.86.19
 ```
+
+Optional: **fresh-only** backend deploy via `deploy_backend_to_cn01.sh`; then run `deploy_backend_production` for full hardening.
 
 ## Architecture
 

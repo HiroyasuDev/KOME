@@ -1,4 +1,6 @@
-# KOME 🚀
+# KOME
+
+**Documentation index**: [docs/00_index/README.md](docs/00_index/README.md) — index and [MANIFEST](docs/00_index/MANIFEST.md) for all docs. 🚀
 
 **OKOME Frontend Cache Node — Lightweight Edge Cache for Static Assets**
 

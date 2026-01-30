@@ -1,7 +1,27 @@
 [Unit]
-Description=Prometheus node exporter (stub)
-After=network-online.target
+Description=Prometheus Node Exporter
+After=network.target
 
 [Service]
-ExecStart=/usr/bin/node_exporter
-# RAM-safe options; deploy per Phase 5.
+User=nobody
+ExecStart=/usr/local/bin/node_exporter \
+  --collector.disable-defaults \
+  --collector.cpu \
+  --collector.meminfo \
+  --collector.filesystem \
+  --collector.netdev \
+  --collector.loadavg \
+  --collector.time \
+  --collector.systemd \
+  --collector.filesystem.mount-points-exclude="^/(proc|sys|dev|tmp|run|var/log)($|/)" \
+  --web.listen-address=192.168.86.20:9100
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+# Notes:
+# - Change --web.listen-address to 192.168.86.19:9100 for backend node
+# - Collectors are minimal to reduce CPU/memory usage
+# - Excludes tmpfs mounts from filesystem metrics

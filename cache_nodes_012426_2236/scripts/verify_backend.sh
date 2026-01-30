@@ -22,7 +22,7 @@ out=$(run "redis-cli ping 2>/dev/null" || true)
 if echo "$out" | grep -q PONG; then
   echo "  OK: Redis PONG"
 else
-  echo "  FAIL: Redis PONG"; FAIL=1
+  echo "  FAIL: Redis ping failed"; FAIL=1
 fi
 
 out=$(run "ss -tlnp 2>/dev/null | grep -E '127.0.0.1:6379|192.168.86.19:6379'" || true)

@@ -50,3 +50,7 @@ nginx-cache/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Python
+__pycache__/
+*.py[cod]

@@ -1,5 +1,19 @@
-# OKOME – fail2ban (stub)
-# Phase 5. RAM-only, SSH-focused.
+# fail2ban configuration for OKOME cache nodes
+# Location: /etc/fail2ban/jail.local
+# Security: RAM-only, SSH-focused
+
+[DEFAULT]
+backend = systemd
+dbfile = /run/fail2ban/fail2ban.sqlite3
+bantime = 1h
+findtime = 10m
+maxretry = 3
 
 [sshd]
 enabled = true
+
+# Notes:
+# - dbfile in /run: RAM-only, no SD writes
+# - bantime 1h: Ban duration
+# - maxretry 3: Failed attempts before ban
+# - findtime 10m: Time window for failures

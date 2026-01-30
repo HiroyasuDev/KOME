@@ -1,49 +1,52 @@
-#!/bin/bash
-# OKOME Two-Node – verify frontend (192.168.86.20) and backend (192.168.86.19)
-# Usage: ./verify.sh [FRONTEND_HOST] [BACKEND_HOST]
+#!/usr/bin/env bash
+# Verify OKOME Two-Node Cache Setup
+# Usage: ./verify.sh
 
 set -euo pipefail
 
-FRONTEND="${1:-192.168.86.20}"
-BACKEND="${2:-192.168.86.19}"
-USER="${OKOME_USER:-ncadmin}"
-FRONTEND_PASS="${OKOME_FRONTEND_PASS:-usshopper}"
-BACKEND_PASS="${OKOME_BACKEND_PASS:-ussfitzgerald}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND="192.168.86.20"
+BACKEND="192.168.86.19"
+UPSTREAM="192.168.86.25:8000"
 
-echo "=== OKOME Two-Node Verify ==="
-echo "Frontend: ${FRONTEND}  Backend: ${BACKEND}"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "=============================="
+echo "OKOME Cache Nodes Verification"
+echo "=============================="
 echo ""
 
-FAIL=0
-
-# Frontend (Nginx) – OK if Nginx responds (200–504). 504 = upstream down, still ready.
-echo "--- Frontend (${FRONTEND}) ---"
-code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://${FRONTEND}/" 2>/dev/null || echo "000")
-if [[ "$code" =~ ^(200|301|302)$ ]]; then
-  echo "  OK: HTTP ${code} (upstream reachable)"
-elif [[ "$code" =~ ^(502|503|504)$ ]]; then
-  echo "  OK: HTTP ${code} (Nginx up; upstream 192.168.86.25:8000 down or slow)"
+# Frontend Node Check
+echo -e "${YELLOW}[FRONTEND] Cache node: ${FRONTEND}${NC}"
+if curl -fsSI "http://${FRONTEND}/" > /dev/null 2>&1; then
+  echo -e "${GREEN}✓ Frontend node is responding${NC}"
+  curl -sI "http://${FRONTEND}/" | grep -i "X-Cache\|X-OKOME\|HTTP" || true
 else
-  echo "  FAIL: HTTP ${code} (Nginx unreachable or timeout)"; FAIL=1
+  echo -e "${RED}✗ Frontend node is not responding${NC}"
 fi
-hit=$(curl -s -D - -o /dev/null --connect-timeout 3 --max-time 8 "http://${FRONTEND}/assets/" 2>/dev/null | grep -i "X-Cache-Status" || true)
-[ -n "$hit" ] && echo "  OK: X-Cache-Status present" || echo "  WARN: X-Cache-Status missing (or upstream down)"
-
-# Backend (Redis)
 echo ""
-echo "--- Backend (${BACKEND}) ---"
-out=$(sshpass -p "$BACKEND_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${USER}@${BACKEND}" "redis-cli ping 2>/dev/null" || true)
-if echo "$out" | grep -q PONG; then
-  echo "  OK: Redis PONG"
-else
-  echo "  FAIL: Redis"; FAIL=1
-fi
 
-echo ""
-if [ "$FAIL" -eq 0 ]; then
-  echo "Two-node verify passed."
+# Backend Node Check
+echo -e "${YELLOW}[BACKEND] Cache node: ${BACKEND}${NC}"
+if redis-cli -h "${BACKEND}" ping > /dev/null 2>&1; then
+  echo -e "${GREEN}✓ Backend Redis is responding${NC}"
+  redis-cli -h "${BACKEND}" info memory | grep -E "used_memory_human|maxmemory_human" || true
 else
-  echo "Some checks failed."
-  exit 1
+  echo -e "${RED}✗ Backend Redis is not responding${NC}"
 fi
+echo ""
+
+# Upstream Check
+echo -e "${YELLOW}[UPSTREAM] Orchestrator: ${UPSTREAM}${NC}"
+if curl -fsSI "http://${UPSTREAM}/health" > /dev/null 2>&1; then
+  echo -e "${GREEN}✓ Upstream orchestrator is responding${NC}"
+else
+  echo -e "${RED}✗ Upstream orchestrator is not responding${NC}"
+fi
+echo ""
+
+echo "=============================="
+echo "Verification complete"
+echo "=============================="

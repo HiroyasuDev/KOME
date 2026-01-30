@@ -1,0 +1,9 @@
+# TensorFlow Serving model config — copy to /path/to/models/models.config on 192.168.86.30
+# Replace model_name and base_path with your SavedModel location.
+model_config_list {
+  config {
+    name: 'my_model'
+    base_path: '/path/to/saved_model'
+    model_platform: 'tensorflow'
+  }
+}

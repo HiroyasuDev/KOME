@@ -2,7 +2,15 @@
 
 ## Overview
 
-KOME is a lightweight, disposable edge cache node designed to accelerate OKOME's **frontend static assets only**. It sits between browsers and the OKOME core, caching JavaScript, CSS, and images to reduce latency and protect the OptiPlex from direct browser traffic. All API requests pass through uncached.
+KOME is a lightweight edge cache with **path through OKOME (192.168.86.25) only**:
+
+- **192.168.86.25** — OKOME Web UI / Gateway: **single path** for all traffic; OKOME talks to GPU (.30) and Redis (.19) internally.
+- **192.168.86.20** — Frontend (Nginx): all traffic to .25 only; no buffering for API/stream; cache + failure handling.
+- **192.168.86.30** — CORE GPU: used by OKOME on .25 for TensorFlow (8500/8501), vLLM (8000), Ollama (11434); not proxied directly by KOME.
+- **192.168.86.19** — Backend (Redis): used by OKOME on .25; **never** live tokens at edge.
+- **192.168.86.41–50** — EDGE nodes (NODE-01–10): Ingress/Router (.41/.42), Cache/Stream (.43–.46), Speculative GPU (.47/.48), Observability (.49/.50); see `cache_nodes_012426_2236/docs/DISTRIBUTED_10_NODE_ARCHITECTURE.md`.
+
+**Golden rule**: All traffic goes through OKOME at 192.168.86.25. KOME (.20) does not buffer API/stream; long timeouts and retries for inference; static served from cache or stale when .25 is down. See `cache_nodes_012426_2236/STREAMING_ARCHITECTURE.md`. TensorFlow on .30: `cache_nodes_012426_2236/docs/GPU_HOST_TENSORFLOW_INTEGRATION.md`.
 
 ## Architecture Diagram
 
@@ -10,28 +18,21 @@ KOME is a lightweight, disposable edge cache node designed to accelerate OKOME's
 ┌─────────────┐
 │   Browser   │
 └──────┬──────┘
-       │
        │ HTTP (port 80)
        │
 ┌──────▼──────────────────┐
-│   KOME Cache Node       │
+│   KOME Frontend         │
 │   (192.168.86.20)       │
-│                         │
-│   ┌─────────────────┐   │
-│   │  NGINX          │   │
-│   │  - Cache        │   │
-│   │  - Compression  │   │
-│   │  - Rate Limit   │   │
-│   └─────────────────┘   │
+│   Single upstream .25   │
+│   No buffer API/stream  │
+│   Cache + failure handling
 └──────┬──────────────────┘
        │
-       │ Proxy (HTTP)
-       │
-┌──────▼──────────────────┐
-│   OKOME Core            │
-│   (192.168.86.25:3000)  │
-│   - Open WebUI          │
-└─────────────────────────┘
+       └──► 192.168.86.25:8000 (OKOME) — UI, API, streaming
+                    │
+                    ├──► 192.168.86.30 (CORE GPU) — TensorFlow (8500/8501), vLLM (8000), Ollama (11434)
+                    ├──► 192.168.86.19 (Redis) — cache
+                    └──► 192.168.86.41–50 (EDGE) — Ingress, Cache/Stream, Speculative GPU, Observability
 ```
 
 ## Components
@@ -69,24 +70,20 @@ KOME is a lightweight, disposable edge cache node designed to accelerate OKOME's
 
 **Cache Size**: 1GB limit
 
-### Non-Cached Paths (All Pass Through)
+### Streaming Path (Pass-Through Only — No Buffering)
 
-All other requests pass through to OKOME core without caching:
-- `/v1/*` — All API endpoints
-- `/infer` — Inference requests
-- `/stream` — Streaming responses
-- WebSockets / SSE
-- Authentication endpoints (`/v1/auth`)
-- POST/PUT/DELETE requests
+- **`/v1/*`** — Proxied **directly to 192.168.86.30** (GPU/vLLM). Nginx must use `proxy_buffering off`, `proxy_request_buffering off`, `chunked_transfer_encoding on`. No cache. No token buffering or aggregation on the edge.
+- `/infer`, `/stream`, WebSockets, SSE — pass-through to upstream with same unbuffered settings.
+- Authentication (`/v1/auth`) and other API paths — pass-through; no caching of live streams.
 
-> **Note**: CN00 focuses exclusively on frontend asset caching. Backend API caching is available as an advanced option (see `docs/guides/backend-caching.md`) but is not recommended for the primary cache node.
+> **Critical**: LLM streaming must be end-to-end unbuffered. If any node in the path buffers or aggregates tokens, you get "thought for 8 minutes" + slow token drip. Cache only static assets, embeddings, prompts, and **completed** responses — never live tokens. See `cache_nodes_012426_2236/STREAMING_ARCHITECTURE.md`.
 
 ## Failure Model
 
 ### Cache Node Failure
 
 - **Impact**: Browser can't connect to cache node
-- **Recovery**: Point browser directly to OptiPlex (192.168.86.25:3000)
+- **Recovery**: Point browser directly to OKOME Web UI (192.168.86.25:8000) or GPU (192.168.86.30:8000) for streaming
 - **Rebuild Time**: < 15 minutes
 
 ### Upstream Failure

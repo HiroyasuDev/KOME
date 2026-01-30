@@ -1,0 +1,33 @@
+# OKOME WireGuard client configuration (optional)
+# Phase 5: Enterprise Hardening
+# Use on admin workstation/laptop to connect to cache nodes
+#
+# Usage:
+# 1. Generate client keys: wg genkey | tee client_privatekey | wg pubkey > client_publickey
+# 2. Add client public key to server's [Peer] section
+# 3. Configure this file with server public key and endpoint
+# 4. Import into WireGuard client (wg-quick, GUI, etc.)
+
+[Interface]
+# Client private key
+PrivateKey = YOUR_CLIENT_PRIVATE_KEY_HERE
+
+# Client VPN IP
+Address = 10.0.0.2/24
+
+# DNS (optional - use internal DNS if needed)
+# DNS = 192.168.86.1
+
+[Peer]
+# Server public key
+PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
+
+# Server endpoint (public IP or domain)
+Endpoint = YOUR_SERVER_IP_OR_DOMAIN:51820
+
+# Allowed IPs (routes traffic through VPN)
+# Use 192.168.86.0/24 to access cache nodes, or 0.0.0.0/0 for full tunnel
+AllowedIPs = 192.168.86.0/24
+
+# Persistent keepalive (for NAT traversal)
+PersistentKeepalive = 25

@@ -1,0 +1,21 @@
+# TensorFlow Serving — CORE GPU 192.168.86.30
+# Copy to /etc/systemd/system/ and set MODEL_BASE_PATH (or use model_config_file).
+# Bind 0.0.0.0 so OKOME at 192.168.86.25 can reach REST 8501 and gRPC 8500.
+
+[Unit]
+Description=TensorFlow Serving (REST 8501, gRPC 8500)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Option A: single model
+# ExecStart=/usr/bin/tensorflow_model_server --port=8500 --rest_api_port=8501 --model_name=my_model --model_base_path=/path/to/saved_model
+# Option B: model config file (recommended)
+ExecStart=/usr/bin/tensorflow_model_server --port=8500 --rest_api_port=8501 --model_config_file=/opt/okome-tf-serving/models/models.config
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

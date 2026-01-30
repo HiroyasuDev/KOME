@@ -1,0 +1,36 @@
+# OKOME WireGuard server configuration (optional)
+# Phase 5: Enterprise Hardening
+# Deploy to /etc/wireguard/wg0.conf on cache nodes for secure admin access
+# 
+# Usage:
+# 1. Generate keys: wg genkey | tee privatekey | wg pubkey > publickey
+# 2. Configure server (this file) and client configs
+# 3. Enable: systemctl enable wg-quick@wg0
+# 4. Start: systemctl start wg-quick@wg0
+#
+# This is OPTIONAL - use only if you need secure admin access over internet
+
+[Interface]
+# Server private key (generate with: wg genkey)
+PrivateKey = YOUR_SERVER_PRIVATE_KEY_HERE
+
+# Server listening port
+ListenPort = 51820
+
+# VPN subnet (choose non-conflicting range)
+Address = 10.0.0.1/24
+
+# Post-up: enable IP forwarding, add iptables rules
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Client peer (add multiple [Peer] sections for multiple clients)
+[Peer]
+# Client public key
+PublicKey = YOUR_CLIENT_PUBLIC_KEY_HERE
+
+# Allowed IPs for this client
+AllowedIPs = 10.0.0.2/32
+
+# Optional: persistent keepalive (useful for NAT traversal)
+# PersistentKeepalive = 25

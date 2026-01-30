@@ -1,4 +1,39 @@
 {
-  "description": "OKOME cache hit/miss (stub). Phase 5.",
-  "title": "OKOME Cache Hit/Miss"
+  "dashboard": {
+    "title": "OKOME Cache Hit/Miss Intelligence",
+    "tags": ["okome", "cache"],
+    "panels": [
+      {
+        "title": "Nginx Cache Hit Ratio",
+        "targets": [
+          {
+            "expr": "sum(rate(nginx_http_cache_hits_total[5m])) / (sum(rate(nginx_http_cache_hits_total[5m])) + sum(rate(nginx_http_cache_misses_total[5m])))",
+            "legendFormat": "Hit Ratio"
+          }
+        ]
+      },
+      {
+        "title": "Redis Hit Ratio",
+        "targets": [
+          {
+            "expr": "redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total)",
+            "legendFormat": "Hit Ratio"
+          }
+        ]
+      },
+      {
+        "title": "Cache Hit Count",
+        "targets": [
+          {
+            "expr": "sum(rate(nginx_http_cache_hits_total[5m]))",
+            "legendFormat": "Nginx Hits"
+          },
+          {
+            "expr": "redis_keyspace_hits_total",
+            "legendFormat": "Redis Hits"
+          }
+        ]
+      }
+    ]
+  }
 }

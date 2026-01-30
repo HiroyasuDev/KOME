@@ -1,0 +1,3 @@
+# OKOME health_state — default (overwritten by okome-health-probe.sh)
+# If probe has not run yet, assume upstream OK so Nginx can start.
+set $okome_upstream_ok 1;

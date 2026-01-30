@@ -7,153 +7,115 @@
 
 ## CN00 (Frontend) — Gaps & Incomplete
 
-### 1. **Static IP not applied by install**
-- **Gap**: `install_frontend_cache.sh` does **not** configure static IP 192.168.86.20. It only disables bluetooth/avahi, installs Nginx, deploys config, logrotate.
-- **Impact**: CN00 may stay on DHCP. `verify_frontend.sh` only **WARN**s if 192.168.86.20 is not on eth0; it does not fail.
-- **Fix**: Add static-IP logic to `install_frontend_cache.sh` (NetworkManager / dhcpcd), mirroring `install_backend_cache.sh`, or provide a separate `reconfigure_frontend_production.sh` that sets it.
+### 1. **Static IP not applied by install** — **Resolved**
+- **Gap**: `install_frontend_cache.sh` did not configure static IP 192.168.86.20.
+- **Fix applied**: Static-IP logic (NetworkManager / dhcpcd) added to `install_frontend_cache.sh`; `reconfigure_frontend_production.sh` also sets it.
 
-### 2. **No journald / sysctl hardening on CN00**
-- **Gap**: Phase 0 (00_FOUNDATION) specifies journald RAM-only and sysctl tweaks for **both** nodes. Only CN01 gets them via `reconfigure_backend_production.sh`. CN00 has no equivalent.
-- **Impact**: Frontend still uses default journald (disk) and no sysctl tuning; higher SD wear, less optimal network params.
-- **Fix**: Add `reconfigure_frontend_production.sh` that applies `journald-okome.conf` and `sysctl-okome.conf`, or extend `install_frontend_cache.sh` to do so. Ensure `deploy_frontend_production.sh` uses it (or runs those steps).
+### 2. **No journald / sysctl hardening on CN00** — **Resolved**
+- **Gap**: CN00 had no journald/sysctl equivalent to backend.
+- **Fix applied**: `reconfigure_frontend_production.sh` added; applies `journald-okome.conf` and `sysctl-okome.conf`. `deploy_frontend_production.sh` runs install then reconfigure.
 
-### 3. **Hostname not set by automation**
-- **Gap**: Phase 0 specifies hostname **CN00** (frontend) / **CN01** (backend). No install or deploy script sets `hostnamectl set-hostname CN00` (or CN01).
-- **Impact**: Nodes may keep default hostnames (e.g. `raspberrypi`), which can confuse operators and logs.
-- **Fix**: Set hostname in `install_frontend_cache.sh` (CN00) and `install_backend_cache.sh` / `reconfigure_backend_production.sh` (CN01). Document in 01_BASIC_SETUP.
+### 3. **Hostname not set by automation** — **Resolved**
+- **Gap**: No script set hostname CN00 / CN01.
+- **Fix applied**: `install_frontend_cache.sh` and `reconfigure_frontend_production.sh` set CN00; `install_backend_cache.sh` and `reconfigure_backend_production.sh` set CN01. Documented in 01_BASIC_SETUP.
 
-### 4. **Phase 2–6 frontend deliverables not implemented**
-- **Gap**: The following are **stubs** or **unimplemented**; they affect or could affect CN00:
-  - **Phase 2**: Health probe timer, Nginx health-state include (`/etc/nginx/okome/health_state.conf`), stale-cache-on-upstream-failure behavior, custom log format, hit-ratio scripts. `okome-health-probe.sh`, `okome-health-probe.service`/`.timer`, `calculate-hit-ratio.sh` are stubs.
-  - **Phase 4**: Canary maps/policies, pre-warm script/timer. `canary_maps.conf`, `canary_policies.conf`, `okome-prewarm.sh`, `okome-prewarm.service`/`.timer` are stubs.
-  - **Phase 5**: Keepalived VIP, node-exporter, SSH hardening, fail2ban, optional Grafana. Configs are stubs.
-- **Impact**: No health-gated failover, no pre-warm, no VIP, no observability beyond X-Cache-Status.
-- **Fix**: Implement per plan in 02_FAILOVER_OBSERVABILITY, 04_ADVANCED_FEATURES, 05_ENTERPRISE_HARDENING.
+### 4. **Phase 2–6 frontend deliverables** — **Resolved**
+- **Fix applied**: Phase 2 (health probe, health_state, log format, hit-ratio), Phase 4 (canary, pre-warm), Phase 5 (keepalived, node-exporter, SSH, fail2ban, chaos, Grafana) implemented. See 02_FAILOVER_OBSERVABILITY, 04_ADVANCED_FEATURES, 05_ENTERPRISE_HARDENING. `deploy_frontend_production` scps `health_state.conf.default`, `okome-health-include.conf`, `canary_maps.conf`, `canary_policies.conf` so install deploys full Phase 2/4 nginx config.
 
-### 5. **Fstab (optional)**
-- **Gap**: `00_FOUNDATION` mentions optional tmpfs for `/var/cache/nginx` (frontend) and `noatime`/`commit=60` on root. Not applied by any script.
-- **Impact**: None if skipped; optionally less SD wear if applied.
-- **Fix**: Document clearly as optional; add fstab merge to install or a separate "Phase 0 optional" script if desired.
+### 5. **Fstab (optional)** — **Resolved**
+- **Fix applied**: Documented as optional in 00_FOUNDATION; `scripts/apply-fstab-optional.sh` adds tmpfs line with backup. Root noatime/commit=60 merge manually.
 
 ---
 
 ## CN01 (Backend) — Gaps & Incomplete
 
-### 1. **Fresh-node deploy: Redis install vs reconfig**
-- **Gap**: `deploy_backend_production.sh` runs **only** `reconfigure_backend_production.sh`. Reconfig does **not** install Redis (`apt-get install redis-server`). It deploys config, journald, sysctl, logrotate, restarts Redis. On a **fresh** CN01, Redis is not installed, so deploy fails.
-- **Impact**: READY and 01_BASIC_SETUP say "run deploy_backend_production" for backend. That is insufficient for a fresh Pi.
-- **Fix**: Either (a) have `deploy_backend_production.sh` run `install_backend_cache.sh` first when Redis is missing, or (b) document clearly: "Fresh CN01: run `deploy_backend_to_cn01` (or `install_backend_cache`) first, then `deploy_backend_production`." Update READY and 01_BASIC_SETUP.
+### 1. **Fresh-node deploy: Redis install vs reconfig** — **Resolved**
+- **Gap**: `deploy_backend_production.sh` only ran reconfig; fresh CN01 failed.
+- **Fix applied**: `deploy_backend_production.sh` detects missing Redis, runs `install_backend_cache.sh` first (nohup), then reconfig. Single script for fresh or existing. READY and 01_BASIC_SETUP updated.
 
-### 2. **Hostname not set by automation**
-- **Gap**: Same as CN00; no script sets **CN01** on the backend.
-- **Fix**: Set in `install_backend_cache.sh` or `reconfigure_backend_production.sh`; document.
+### 2. **Hostname not set by automation** — **Resolved**
+- **Gap**: No script set CN01 on backend.
+- **Fix applied**: `install_backend_cache.sh` and `reconfigure_backend_production.sh` set hostname CN01; documented.
 
-### 3. **Phase 2–6 backend deliverables not implemented**
-- **Gap**: Backend-related stubs / unimplemented:
-  - **Phase 2**: Health probe, observability (e.g. X-Upstream, X-Request-ID from Nginx; backend health checks). `okome-health-probe` is stub.
-  - **Phase 3**: `cache.py`, `budget.py`, planner integration. Code stubs only; TODO: Redis connection, keys, TTL; rate limits; etc.
-  - **Phase 5**: Keepalived (VIP), node-exporter, SSH/fail2ban, optional chaos testing. Configs stubs.
-- **Impact**: No planner cache integration, no health-gated VIP, no structured observability.
-- **Fix**: Implement per 02_FAILOVER_OBSERVABILITY, 03_CACHE_PLANNER, 05_ENTERPRISE_HARDENING.
+### 3. **Phase 2–6 backend deliverables** — **Resolved**
+- **Fix applied**: Phase 2–5 implemented (health probe, observability, cache/budget/planner, keepalived, node-exporter, SSH, fail2ban, chaos). See 02, 03, 05.
 
-### 4. **Fstab (optional)**
-- **Gap**: Same as CN00; optional fstab tweaks not applied.
-- **Fix**: As for CN00; optional.
+### 4. **Fstab (optional)** — **Resolved**
+- Same as CN00; optional. `apply-fstab-optional.sh` available.
 
-### 5. **verify_backend.sh message bug**
-- **Gap**: When Redis ping **fails**, the script prints `FAIL: Redis PONG` instead of `FAIL: Redis no PONG` or `FAIL: Redis ping failed`.
-- **Impact**: Misleading log message during failures.
-- **Fix**: Change the else-branch message to e.g. `FAIL: Redis ping failed` (or `no PONG`).
+### 5. **verify_backend.sh message bug** — **Resolved**
+- **Gap**: On Redis ping failure, script printed `FAIL: Redis PONG`.
+- **Fix applied**: Else-branch now prints `FAIL: Redis ping failed`.
 
 ---
 
 ## Shared / Both Nodes
 
-### 1. **Phase 0 raspi-config**
-- **Gap**: 00_FOUNDATION references raspi-config (hostname, GPU memory 16–32 MB, etc.). No automation runs `raspi-config` or equivalent.
-- **Impact**: Operators must configure manually; golden-image process is less reproducible.
-- **Fix**: Document exact raspi-config steps; optionally add a small wrapper script that runs non-interactive raspi-config if available.
+### 1. **Phase 0 raspi-config** — **Resolved**
+- **Fix applied**: 00_FOUNDATION documents exact steps; `scripts/raspi-config-okome.sh` provides hostname/gpu helpers.
 
-### 2. **Golden image**
-- **Gap**: `create-golden-image.sh` only **prints** steps (echo). It does not image the SD, set IP/hostname on a cloned node, or re-run deploys.
-- **Impact**: Golden-image procedure is manual.
-- **Fix**: Implement helpers (e.g. `dd` imaging, hostname/IP setup per node, re-deploy) or clearly document as "documentation-only" and add a separate automation script later.
+### 2. **Golden image** — **Resolved**
+- **Fix applied**: `create-golden-image.sh` marked documentation-only; `--print-dd` outputs sample dd commands.
 
-### 3. **Phase 6 SRE runbook**
-- **Gap**: 06_SRE_RUNBOOK is a stub. Incident procedures (UI slow/blank, Redis down, VIP not responding, Pi dead, upstream down, cache-miss storm, chaos) are not written.
-- **Impact**: No formal runbook for operations.
-- **Fix**: Implement 06_SRE_RUNBOOK per plan; document all seven incident types with step-by-step procedures, and keep `okome-validate.sh` as the canonical one-command validation (reference it for pre- and post-incident checks in the runbook).
+### 3. **Phase 6 SRE runbook** — **Resolved**
+- **Fix applied**: 06_SRE_RUNBOOK.md has procedures for all seven incident types, golden rules, okome-validate reference.
 
-### 4. **Code stubs (Phase 3)**
-- **Gap**: `code/okome/cache.py`, `budget.py`, `planner_example.py` are stubs with TODOs:
-  - `cache.py`: TODO: Redis connection, cache keys (planner, RAG, model meta), TTL.
-  - `budget.py`: TODO: Rate limiting per agent, cache write budget, cardinality caps.
-  - `planner_example.py`: TODO: Use cache.py + budget.py; stampede locks; X-OKOME-Cache headers.
-- **Impact**: No planner cache integration; orchestrator cannot use backend cache.
-- **Fix**: Implement per 03_CACHE_PLANNER; integrate with OKOME orchestrator.
+### 4. **Code stubs (Phase 3)** — **Resolved**
+- **Fix applied**: cache.py, budget.py, planner_example.py implemented; Redis, keys, TTL, rate limits, stampede lock, X-OKOME-Cache headers.
 
-### 5. **Observability gaps**
-- **Gap**: Phase 2 specifies custom Nginx log format, hit-ratio scripts, X-Upstream, X-Request-ID headers. Only X-Cache-Status and X-OKOME-Node are implemented.
-- **Impact**: Limited observability; no hit-ratio tracking, no request correlation.
-- **Fix**: Implement custom log format, `calculate-hit-ratio.sh`, add X-Upstream/X-Request-ID to Nginx config.
+### 5. **Observability gaps** — **Resolved**
+- **Fix applied**: okome_fmt log format, calculate-hit-ratio.sh, X-Upstream, X-Request-ID in Nginx.
 
-### 6. **SSH / fail2ban (Phase 5)**
-- **Gap**: `configs/ssh/sshd_config` and `configs/fail2ban/jail.local` are stubs. No SSH hardening or fail2ban deployed.
-- **Impact**: Nodes vulnerable to brute-force; SSH not hardened.
-- **Fix**: Implement SSH config (key-only, disable root, etc.), fail2ban jail (RAM-only, SSH), deploy via Phase 5 script.
+### 6. **SSH / fail2ban (Phase 5)** — **Resolved**
+- **Fix applied**: sshd_config merge instructions; fail2ban jail.local (SSH). Deploy per 05_ENTERPRISE_HARDENING.
 
-### 7. **Keepalived VIP (Phase 5)**
-- **Gap**: `configs/keepalived/keepalived-master.conf` and `keepalived-backup.conf` are stubs. No VIP (192.168.86.18) configured.
-- **Impact**: No high-availability frontend; single point of failure.
-- **Fix**: Implement keepalived configs, health check integration, deploy to both frontend nodes (when second CN00 exists).
+### 7. **Keepalived VIP (Phase 5)** — **Resolved**
+- **Fix applied**: keepalived-master/backup configs, okome-keepalived-check.sh. Deploy when second frontend exists.
 
-### 8. **Node exporter / Grafana (Phase 5)**
-- **Gap**: `configs/systemd/node-exporter.service` is stub; `dashboards/grafana/okome-cache-hitmiss.json` is stub. No Prometheus metrics or Grafana dashboard.
-- **Impact**: No structured metrics; no dashboard for cache hit/miss.
-- **Fix**: Implement node-exporter (RAM-safe), Grafana dashboard JSON, deploy per Phase 5.
+### 8. **Node exporter / Grafana (Phase 5)** — **Resolved**
+- **Fix applied**: node-exporter.service (RAM-safe); okome-cache-hitmiss.json. Deploy per 05.
 
-### 9. **Chaos testing (Phase 5)**
-- **Gap**: `scripts/okome-chaos.sh` is stub. No chaos testing framework.
-- **Impact**: No resilience testing.
-- **Fix**: Implement chaos script (network partition, Redis kill, Nginx restart, etc.) with CHAOS_ENABLE guard.
+### 9. **Chaos testing (Phase 5)** — **Resolved**
+- **Fix applied**: okome-chaos.sh (nginx-stop/start, redis-stop/start), CHAOS_ENABLE guard.
 
-### 10. **Canary / pre-warm (Phase 4)**
-- **Gap**: `configs/nginx-frontend/canary_maps.conf`, `canary_policies.conf`, `scripts/okome-prewarm.sh`, `okome-prewarm.service`/`.timer` are stubs.
-- **Impact**: No canary deployments; no cache pre-warming.
-- **Fix**: Implement canary maps (header/cookie-based), policies (control/canary/debug), pre-warm script (analyze logs, warm top N URLs), systemd timer.
+### 10. **Canary / pre-warm (Phase 4)** — **Resolved**
+- **Fix applied**: canary_maps, canary_policies, okome-prewarm.sh, systemd timer. See 04_ADVANCED_FEATURES.
 
-### 11. **Documentation gaps**
-- **Gap**: Phase 2–6 docs (02_FAILOVER_OBSERVABILITY, 03_CACHE_PLANNER, 04_ADVANCED_FEATURES, 05_ENTERPRISE_HARDENING, 06_SRE_RUNBOOK) are stubs with "Status: Stub. Implement per plan."
-- **Impact**: No detailed procedures for advanced features.
-- **Fix**: Write full documentation per plan; include deploy steps, configs, verification.
+### 11. **Documentation gaps** — **Resolved**
+- **Fix applied**: 02–06 docs expanded with procedures, deploy steps, verification.
 
-### 12. **Deploy script inconsistencies**
-- **Gap**: 
-  - `deploy_backend_to_cn01.sh` runs `install_backend_cache.sh` (fresh install).
-  - `deploy_backend_production.sh` runs `reconfigure_backend_production.sh` (reconfig only, assumes Redis installed).
-  - No equivalent `deploy_frontend_to_cn00.sh` for fresh install; only `deploy_frontend_production.sh` which runs `install_frontend_cache.sh`.
-- **Impact**: Backend has two deploy paths (fresh vs reconfig); frontend has one. Inconsistent.
-- **Fix**: Either unify (e.g. `deploy_backend_production.sh` detects fresh vs existing and calls install or reconfig), or document clearly: "Fresh: use deploy_backend_to_cn01; existing: use deploy_backend_production."
+### 12. **Deploy script inconsistencies** — **Resolved**
+- **Gap**: Backend had two paths (fresh vs reconfig); frontend only install.
+- **Fix applied**: `deploy_backend_production.sh` unifies: install-if-missing then reconfig. Frontend deploy runs install + reconfigure. `deploy_backend_to_cn01` retained as optional fresh-only; documented in READY.
 
 ---
 
 ## Summary
 
-**Phase 1 (Basic Setup)**: ✅ **Complete** — Both nodes operational, Redis + Nginx deployed, static IPs set (CN01 via reconfig; CN00 manual or missing), basic verification works.
+**Phase 1 (Basic Setup)**: ✅ **Complete** — Both nodes operational, Redis + Nginx deployed, static IPs set by install/reconfig, hostname CN00/CN01 set, basic verification works.
 
-**Phase 0 (Foundation)**: ⚠️ **Partial** — Journald/sysctl on CN01 only; hostname not set; raspi-config manual; fstab optional (not applied).
+**Phase 0 (Foundation)**: ✅ **Improved** — Journald/sysctl applied on **both** CN00 and CN01 via reconfigure scripts; hostname set. Raspi-config remains manual; fstab optional (not applied).
 
-**Phase 2–6**: ❌ **Stubs** — All advanced features, observability, failover, planner integration, enterprise hardening, SRE runbook are unimplemented.
+**Phase 2–6**: ✅ **Implemented** — Health probe, observability, planner code, canary/pre-warm, enterprise hardening, SRE runbook, optional Phase 0 (fstab, raspi-config, golden-image) are in place.
 
-**Critical gaps for production**:
-1. CN00 static IP not automated.
-2. CN00 journald/sysctl missing.
-3. Fresh CN01 deploy unclear (install vs reconfig).
-4. Hostname not set on either node.
-5. verify_backend.sh message bug.
+**Critical gaps (Phase 0/1) — resolved**:
+1. ~~CN00 static IP not automated~~ → Done in install + reconfigure.
+2. ~~CN00 journald/sysctl missing~~ → `reconfigure_frontend_production.sh` + deploy.
+3. ~~Fresh CN01 deploy unclear~~ → `deploy_backend_production` install-if-missing.
+4. ~~Hostname not set~~ → Set in install + reconfigure for both nodes.
+5. ~~verify_backend.sh message bug~~ → Fixed.
 
-**Next steps**: Address Phase 1 gaps first (static IP CN00, journald/sysctl CN00, hostname, fresh-deploy clarity), then proceed with Phase 2–6 implementation.
+**Next steps**: Deploy Phase 2–5 components (health probe, pre-warm, canary, keepalived when second frontend exists) per 02–05 docs. Run `okome-validate` and use 06_SRE_RUNBOOK for incidents.
 
 ---
 
-**Last updated**: 2026-01-25
+## Path through OKOME .25 + full throughput/failures (2026-01-30)
+
+- **Path through 192.168.86.25 only**: All traffic goes through OKOME at .25. Nginx on .20 has a single upstream `okome_upstream` (192.168.86.25:8000). No direct proxy to .30 from KOME; OKOME on .25 talks to GPU (.30) and Redis (.19) internally.
+- **Throughput**: API/stream locations use `proxy_buffering off`, `proxy_request_buffering off`, `chunked_transfer_encoding on`, `proxy_read_timeout 600s`, `proxy_send_timeout 600s`, `keepalive 64`, and `proxy_next_upstream error timeout http_502 http_503 http_504` with `proxy_next_upstream_tries 2`.
+- **Failures**: Health probe checks .25/health; static locations use `proxy_cache_use_stale` and `error_page 502 503 504 = @okome_maintenance`; maintenance returns 503 + Retry-After. Health default: `set $okome_upstream_ok 1` in health_state.conf.default.
+- **Docs**: [STREAMING_ARCHITECTURE.md](STREAMING_ARCHITECTURE.md), [docs/INFRASTRUCTURE_REFERENCE.md](docs/INFRASTRUCTURE_REFERENCE.md), ARCHITECTURE.md, and README updated for path-through-.25.
+
+---
+
+**Last updated**: 2026-01-30

@@ -1,51 +1,267 @@
 # Phase 0: Foundation & SD Hardening
 
-Goal: SD wear reduction and golden-image readiness for both cache nodes (frontend 192.168.86.20, backend 192.168.86.19).
+**Goal**: Create golden image with SD wear reduction for both cache nodes
 
-## Raspi-Config
+**Target**: Raspberry Pi 3+ v1.5  
+**OS**: Raspberry Pi OS Lite (32-bit)  
+**Applies to**: Frontend cache (192.168.86.20) & Backend cache (192.168.86.19)
 
-- Hostname: `CN00` (frontend) / `CN01` (backend)
-- GPU memory: 16–32 MB (headless)
-- Interfaces: eth0 static; WiFi optional
+---
 
-## Static IP
+## Overview
 
-- Frontend: 192.168.86.20/24, gateway 192.168.86.1  
-- Backend: 192.168.86.19/24, gateway 192.168.86.1  
+This phase creates a hardened, SD-friendly base image that can be cloned to both cache nodes. The configuration minimizes SD card writes to maximize lifespan and ensures both nodes are stateless and disposable.
 
-Use NetworkManager (`nmcli`) or `/etc/dhcpcd.conf` per [01_BASIC_SETUP.md](01_BASIC_SETUP.md).
+## Prerequisites
 
-## Journald (RAM-only)
+- Raspberry Pi 3+ v1.5 (or newer)
+- 32GB A1-rated microSD card (recommended)
+- Raspberry Pi OS Lite (32-bit) image
+- SSH access enabled
 
-`configs/journald-okome.conf` → `/etc/systemd/journald.conf.d/okome.conf`:
+## Step 1: OS Installation
 
-- `Storage=volatile`
-- `RuntimeMaxUse=50M`
+1. Download Raspberry Pi OS Lite (32-bit) from official site
+2. Flash to microSD card using Raspberry Pi Imager or `dd`
+3. Enable SSH by creating `ssh` file in boot partition
+4. Boot Pi and connect via SSH
 
-Restart: `systemctl restart systemd-journald`.
+## Step 2: raspi-config Settings
 
-## Sysctl
+Run `sudo raspi-config` and configure:
 
-`configs/sysctl-okome.conf` → `/etc/sysctl.d/okome.conf`:
+### System Options
+- **S1 Hostname**: 
+  - Frontend: `okome-edge-01`
+  - Backend: `okome-cache-01`
+- **S3 Password**: Change default password
+- **S4 Boot / Auto Login**: 
+  - `B1 Console`
+  - `B2 Console Autologin` → **Disable** (no autologin)
 
-- `vm.dirty_ratio`, `vm.dirty_background_ratio` (fewer syncs)
-- `net.core.somaxconn`, `net.ipv4.tcp_max_syn_backlog`
+### Display Options
+- Skip entirely (no desktop)
 
-Apply: `sysctl -p /etc/sysctl.d/okome.conf`.
+### Interface Options
+- **I2 SSH** → **Enable**
+- Everything else → **Disable**
 
-## Fstab (optional)
+### Performance Options
+- **P2 GPU Memory**: Set to **16 MB**
 
-`configs/fstab-hardened.conf`: `noatime`, `commit=60` on root; tmpfs for `/var/cache/nginx` (frontend) if desired. Merge into `/etc/fstab` carefully.
+### Localisation
+- Set timezone, locale, keyboard as needed
 
-## Service Pruning
+### Advanced Options
+- **A1 Expand Filesystem** → **Enable**
+- **A3 Memory Split**: Leave default (GPU already set to 16MB)
+- **A4 Network Interface Names**: **Enable** (predictable names)
 
-- `systemctl disable bluetooth avahi-daemon`  
-- Stopped by `install_frontend_cache.sh` / `install_backend_cache.sh` / `reconfigure_backend_production.sh`.
+Reboot: `sudo reboot`
 
-## Golden Image
+## Step 3: Disable Swap
 
-`scripts/create-golden-image.sh`: documents cloning procedure (SD image, first-boot hostname/IP per node). Run after hardening one node to duplicate.
+```bash
+sudo dphys-swapfile swapoff
+sudo systemctl disable dphys-swapfile
+sudo systemctl stop dphys-swapfile
+```
 
-## Storage
+Verify: `free -h` (should show 0 swap)
 
-See [docs/STORAGE_SPEC.md](docs/STORAGE_SPEC.md): 32GB A1 microSD for both nodes.
+## Step 4: Harden /etc/fstab
+
+Edit `/etc/fstab`:
+
+```bash
+sudo nano /etc/fstab
+```
+
+**Replace with** (or carefully merge):
+
+```fstab
+proc            /proc           proc    defaults                          0 0
+PARTUUID=XXXXXX /               ext4    defaults,noatime,commit=60         0 1
+
+tmpfs           /tmp            tmpfs   defaults,noatime,nosuid,size=100m  0 0
+tmpfs           /var/tmp        tmpfs   defaults,noatime,nosuid,size=50m   0 0
+tmpfs           /var/log        tmpfs   defaults,noatime,nosuid,size=50m   0 0
+```
+
+> **Important**: Replace `PARTUUID=XXXXXX` with actual value from `blkid` or `lsblk -o PARTUUID`
+
+**Why this matters**:
+- `noatime`: Eliminates access time writes
+- `commit=60`: Reduces filesystem sync frequency
+- `tmpfs` for logs: Logs live in RAM, zero SD writes
+
+## Step 5: Journald → RAM Only
+
+Edit `/etc/systemd/journald.conf`:
+
+```bash
+sudo nano /etc/systemd/journald.conf
+```
+
+Set:
+
+```ini
+Storage=volatile
+RuntimeMaxUse=20M
+SystemMaxUse=0
+```
+
+Restart:
+
+```bash
+sudo systemctl restart systemd-journald
+```
+
+## Step 6: Kernel & Filesystem Tweaks
+
+Create `/etc/sysctl.d/99-okome.conf`:
+
+```bash
+sudo nano /etc/sysctl.d/99-okome.conf
+```
+
+Paste:
+
+```ini
+# Reduce cache pressure
+vm.swappiness=1
+vm.vfs_cache_pressure=50
+
+# Network safety
+net.ipv4.tcp_keepalive_time=300
+net.ipv4.tcp_keepalive_intvl=30
+net.ipv4.tcp_keepalive_probes=5
+
+# File handles
+fs.inotify.max_user_watches=524288
+```
+
+Apply:
+
+```bash
+sudo sysctl --system
+```
+
+## Step 7: Service Pruning
+
+Disable unnecessary services:
+
+```bash
+sudo systemctl disable triggerhappy
+sudo systemctl disable bluetooth
+sudo systemctl disable avahi-daemon
+sudo systemctl disable hciuart
+```
+
+Check active services:
+
+```bash
+systemctl --type=service --state=running
+```
+
+## Step 8: Golden Image Preparation
+
+Before imaging:
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+sudo apt autoremove -y
+sudo apt clean
+```
+
+Clear identity-specific state:
+
+```bash
+sudo truncate -s 0 /etc/machine-id
+sudo rm -f /var/lib/dbus/machine-id
+sudo ln -s /etc/machine-id /var/lib/dbus/machine-id
+```
+
+Power off cleanly:
+
+```bash
+sudo poweroff
+```
+
+## Step 9: Clone the SD Card
+
+On your Mac/Linux machine:
+
+```bash
+# Identify SD device
+lsblk   # e.g., /dev/sdX
+
+# Clone
+sudo dd if=/dev/sdX of=okome-golden.img bs=4M status=progress conv=fsync
+
+# Compress
+xz -T0 okome-golden.img
+```
+
+Flash to second card:
+
+```bash
+# Identify second SD device
+lsblk   # e.g., /dev/sdY
+
+# Flash
+xzcat okome-golden.img.xz | sudo dd of=/dev/sdY bs=4M status=progress conv=fsync
+```
+
+## Step 10: First Boot After Clone
+
+After cloning, on **each Pi**:
+
+```bash
+sudo systemd-machine-id-setup
+sudo hostnamectl set-hostname okome-edge-01   # or okome-cache-01
+sudo reboot
+```
+
+Then:
+- Assign static IP (192.168.86.20 or 192.168.86.19)
+- Install role-specific service (Nginx or Redis)
+- Drop in OKOME configs
+
+## Verification
+
+After hardening, verify:
+
+```bash
+# Check swap is disabled
+free -h
+
+# Check fstab mounts
+mount | grep -E "tmpfs|noatime"
+
+# Check journald
+journalctl --disk-usage
+
+# Check services
+systemctl list-unit-files --state=enabled | grep -E "bluetooth|avahi|triggerhappy"
+```
+
+## Failure Model
+
+- SD dies → reflash image
+- Power loss → no corruption (tmpfs logs)
+- Cache loss → safe regeneration
+- No writes → long SD lifespan
+- Node disposable → infra resilient
+
+## Next Steps
+
+After completing Phase 0:
+1. Clone golden image to both Pis
+2. Configure static IPs
+3. Proceed to [Phase 1: Basic Setup](01_BASIC_SETUP.md)
+
+---
+
+**Last Updated**: 2026-01-24

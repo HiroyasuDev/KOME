@@ -1,7 +1,7 @@
-#!/bin/bash
-# OKOME Frontend Cache – Install Nginx on 192.168.86.20 (CN00)
-# Plan: okome_two-node_cache_architecture_implementation
-# Usage: sudo ./install_frontend_cache.sh [CONFIG_DIR]
+#!/usr/bin/env bash
+# Install Frontend Cache Node (Nginx)
+# Node: 192.168.86.20
+# Usage: sudo ./install_frontend_cache.sh
 
 set -euo pipefail
 
@@ -10,72 +10,49 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-FRONTEND_IP="192.168.86.20"
-ORCHESTRATOR="192.168.86.25:8000"
-CACHE_PATH="/var/cache/nginx/okome"
-NGINX_CONF_D="/etc/nginx/conf.d"
-NGINX_CONF_DEST="${NGINX_CONF_D}/okome-frontend.conf"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(dirname "$SCRIPT_DIR")"
-CONFIG_BASE="${1:-$REPO}"
-CONFIGS="${CONFIG_BASE}/configs"
-NGINX_CONF_SRC="${CONFIGS}/nginx-frontend/okome-frontend.conf"
+echo -e "${GREEN}=== OKOME Frontend Cache Node Installation ===${NC}"
+echo ""
 
+# Check if running as root
 if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}Error: Run with sudo${NC}"
+  echo -e "${RED}Error: This script must be run as root (use sudo)${NC}"
   exit 1
 fi
 
-[ ! -f "$NGINX_CONF_SRC" ] && { echo -e "${RED}Error: ${NGINX_CONF_SRC} not found${NC}"; exit 1; }
-
-echo -e "${GREEN}=== OKOME Frontend Cache Install ===${NC}"
-echo "Frontend: ${FRONTEND_IP}  Upstream: ${ORCHESTRATOR}"
-echo ""
-
-echo -e "${GREEN}[1/5] Disable bluetooth, avahi...${NC}"
-systemctl disable bluetooth 2>/dev/null || true
-systemctl disable avahi-daemon 2>/dev/null || true
-systemctl stop bluetooth 2>/dev/null || true
-systemctl stop avahi-daemon 2>/dev/null || true
-
-echo -e "${GREEN}[2/5] Install Nginx, logrotate...${NC}"
+# Step 1: Install Nginx
+echo -e "${GREEN}[1/4] Installing Nginx...${NC}"
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y nginx logrotate curl
+apt-get install -y nginx
 
-echo -e "${GREEN}[3/5] Create cache dir ${CACHE_PATH}...${NC}"
-mkdir -p "$CACHE_PATH"
+# Step 2: Create cache directory
+echo -e "${GREEN}[2/4] Creating cache directory...${NC}"
+mkdir -p /var/cache/nginx/okome
 chown -R www-data:www-data /var/cache/nginx
-chmod 755 /var/cache/nginx
 
-echo -e "${GREEN}[4/5] Deploy Nginx config...${NC}"
-# Remove old OKOME configs to avoid conflicts
-rm -f "${NGINX_CONF_D}/kome-cache.conf" 2>/dev/null || true
-rm -f "${NGINX_CONF_D}/default" 2>/dev/null || true
-cp "$NGINX_CONF_SRC" "$NGINX_CONF_DEST"
+# Step 3: Install configuration
+echo -e "${GREEN}[3/4] Installing Nginx configuration...${NC}"
+# Note: Configuration file should be copied from cache_nodes_012426_2236/configs/nginx-frontend/okome-frontend.conf
+# to /etc/nginx/sites-available/okome-frontend
 
-echo -e "${GREEN}[5/5] Logrotate, enable, start...${NC}"
-cat > /etc/logrotate.d/nginx-okome << 'LR'
-/var/log/nginx/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0640 www-data adm
-    sharedscripts
-    postrotate
-        [ -f /var/run/nginx.pid ] && kill -USR1 $(cat /var/run/nginx.pid)
-    endscript
-}
-LR
-nginx -t
-systemctl enable nginx
-systemctl restart nginx
+if [ -f "/etc/nginx/sites-available/okome-frontend" ]; then
+  echo "Configuration already exists, skipping..."
+else
+  echo -e "${YELLOW}Please copy okome-frontend.conf to /etc/nginx/sites-available/okome-frontend${NC}"
+  echo "Then run: sudo ln -s /etc/nginx/sites-available/okome-frontend /etc/nginx/sites-enabled/"
+fi
+
+# Step 4: Test and start
+echo -e "${GREEN}[4/4] Testing Nginx configuration...${NC}"
+if nginx -t; then
+  systemctl enable nginx
+  systemctl restart nginx
+  echo -e "${GREEN}Nginx started successfully${NC}"
+else
+  echo -e "${RED}Error: Nginx configuration test failed${NC}"
+  exit 1
+fi
 
 echo ""
-echo -e "${GREEN}=== Frontend cache ready ===${NC}"
-echo "  Nginx: ${FRONTEND_IP}:80  Upstream: ${ORCHESTRATOR}"
-echo "  Cache: ${CACHE_PATH} (2GB)"
-echo "  Test: curl -I http://${FRONTEND_IP}/assets/"
+echo -e "${GREEN}=== Installation Complete ===${NC}"
+echo "Frontend cache node is ready at: http://192.168.86.20"
 echo ""
